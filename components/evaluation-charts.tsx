@@ -680,208 +680,180 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
                   /* Charts Display for Rating Questions */
                   <div className="grid gap-10 lg:grid-cols-2">
                     {/* Pie Chart */}
-                    <div>
+                    <div className="flex flex-col items-center">
                       <h3 className="text-base font-bold text-gray-900 mb-6 flex items-center gap-2.5">
                         <div className="h-1 w-8 bg-gray-300"></div>
                         Response Distribution
                       </h3>
-                      <ChartContainer
-                        config={{
-                          "Strongly Agree": {
-                            label: "Strongly Agree",
-                            color: COLORS["Strongly Agree"],
-                          },
-                          Agree: {
-                            label: "Agree",
-                            color: COLORS["Agree"],
-                          },
-                          Undecided: {
-                            label: "Undecided",
-                            color: COLORS["Undecided"],
-                          },
-                          Disagree: {
-                            label: "Disagree",
-                            color: COLORS["Disagree"],
-                          },
-                          "Strongly Disagree": {
-                            label: "Strongly Disagree",
-                            color: COLORS["Strongly Disagree"],
-                          },
-                        }}
-                        className="h-[320px] w-full"
-                      >
-                        {pieData.length > 0 ? (
-                          <PieChart width={350} height={320}>
-                            <Pie
-                              data={pieData}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, percent }) => {
-                                const p = (percent as number) ?? 0
-                                if (p < 0.05) return '' // Hide labels for very small slices
-                                return `${(p * 100).toFixed(0)}%`
-                              }}
-                              innerRadius={60}
-                              outerRadius={100}
-                              fill="#8884d8"
-                              dataKey="value"
-                              paddingAngle={3}
-                              stroke="#ffffff"
-                              strokeWidth={3}
-                            >
-                              {pieData.map((entry, idx) => {
-                                const color = COLORS[entry.name as keyof typeof COLORS] || getGradientColor(idx).start
-                                return (
-                                  <Cell
-                                    key={`cell-${idx}`}
-                                    fill={color}
-                                    style={{
-                                      filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.15))',
-                                      transition: 'all 0.3s ease'
-                                    }}
-                                  />
-                                )
-                              })}
-                            </Pie>
-                            <ChartTooltip
-                              content={({ active, payload }) => {
-                                if (active && payload && payload.length) {
-                                  const data = payload[0]
-                                  const total = pieData.reduce((sum, item) => sum + item.value, 0)
-                                  const percentage = total > 0 ? ((data.value as number / total) * 100).toFixed(1) : '0'
-                                  return (
-                                    <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
-                                      <div className="flex items-center gap-3 mb-2">
-                                        <div
-                                          className="w-4 h-4 rounded-sm"
-                                          style={{ backgroundColor: data.payload.fill }}
-                                        />
-                                        <p className="text-sm font-bold text-gray-900">{data.name}</p>
-                                      </div>
-                                      <div className="flex items-baseline gap-2">
-                                        <p className="text-lg font-bold text-gray-900">{data.value}</p>
-                                        <p className="text-sm text-gray-500 font-semibold">({percentage}%)</p>
-                                      </div>
-                                    </div>
-                                  )
-                                }
-                                return null
-                              }}
-                            />
-                            <Legend
-                              verticalAlign="bottom"
-                              height={70}
-                              wrapperStyle={{ fontSize: '13px', paddingTop: '32px', fontWeight: 700 }}
-                              iconType="circle"
-                              iconSize={20}
-                              formatter={(value, entry) => {
-                                const data = pieData.find(item => item.name === value)
-                                const total = pieData.reduce((sum, item) => sum + item.value, 0)
-                                const percentage = data && total > 0 ? ((data.value / total) * 100).toFixed(1) : '0'
-                                const count = data ? data.value : 0
-                                // Format: "Agree 1 (100%)"
-                                return `${value} ${count} (${percentage}%)`
-                              }}
-                            />
-                          </PieChart>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center h-[320px] text-sm text-gray-400 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-200">
-                            <svg className="w-16 h-16 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-                            </svg>
-                            <p className="font-semibold text-gray-500">No response data available</p>
-                            <p className="text-xs text-gray-400 mt-1">Waiting for student responses</p>
+                      {pieData.length > 0 ? (
+                        <div className="flex justify-center w-full">
+                          <div className="h-[320px] w-full max-w-[350px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={pieData}
+                                  cx="50%"
+                                  cy="45%"
+                                  labelLine={false}
+                                  label={({ name, percent }) => {
+                                    const p = (percent as number) ?? 0
+                                    if (p < 0.05) return ''
+                                    return `${(p * 100).toFixed(0)}%`
+                                  }}
+                                  innerRadius={55}
+                                  outerRadius={90}
+                                  fill="#8884d8"
+                                  dataKey="value"
+                                  paddingAngle={3}
+                                  stroke="#ffffff"
+                                  strokeWidth={3}
+                                >
+                                  {pieData.map((entry, idx) => {
+                                    const color = COLORS[entry.name as keyof typeof COLORS] || getGradientColor(idx).start
+                                    return (
+                                      <Cell
+                                        key={`cell-${idx}`}
+                                        fill={color}
+                                        style={{
+                                          filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.15))',
+                                          transition: 'all 0.3s ease'
+                                        }}
+                                      />
+                                    )
+                                  })}
+                                </Pie>
+                                <ChartTooltip
+                                  content={({ active, payload }) => {
+                                    if (active && payload && payload.length) {
+                                      const data = payload[0]
+                                      const total = pieData.reduce((sum, item) => sum + item.value, 0)
+                                      const percentage = total > 0 ? ((data.value as number / total) * 100).toFixed(1) : '0'
+                                      return (
+                                        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-lg">
+                                          <div className="flex items-center gap-3 mb-2">
+                                            <div
+                                              className="w-4 h-4 rounded-sm"
+                                              style={{ backgroundColor: data.payload.fill }}
+                                            />
+                                            <p className="text-sm font-bold text-gray-900">{data.name}</p>
+                                          </div>
+                                          <div className="flex items-baseline gap-2">
+                                            <p className="text-lg font-bold text-gray-900">{data.value}</p>
+                                            <p className="text-sm text-gray-500 font-semibold">({percentage}%)</p>
+                                          </div>
+                                        </div>
+                                      )
+                                    }
+                                    return null
+                                  }}
+                                />
+                                <Legend
+                                  verticalAlign="bottom"
+                                  height={50}
+                                  wrapperStyle={{ fontSize: '12px', paddingTop: '10px', fontWeight: 700 }}
+                                  iconType="circle"
+                                  iconSize={10}
+                                  formatter={(value, entry) => {
+                                    const data = pieData.find(item => item.name === value)
+                                    const total = pieData.reduce((sum, item) => sum + item.value, 0)
+                                    const percentage = data && total > 0 ? ((data.value / total) * 100).toFixed(1) : '0'
+                                    const count = data ? data.value : 0
+                                    return `${value} ${count} (${percentage}%)`
+                                  }}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
                           </div>
-                        )}
-                      </ChartContainer>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-[320px] text-sm text-gray-400 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-200">
+                          <svg className="w-16 h-16 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+                          </svg>
+                          <p className="font-semibold text-gray-500">No response data available</p>
+                          <p className="text-xs text-gray-400 mt-1">Waiting for student responses</p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Answer Distribution Bar Chart */}
-                    <div>
+                    <div className="flex flex-col items-center">
                       <h3 className="text-base font-bold text-gray-900 mb-6 flex items-center gap-2.5">
                         <div className="h-1 w-8 bg-gray-300"></div>
                         Answer Distribution
                       </h3>
                       {barData.length > 0 ? (
-                        <ChartContainer
-                          config={barData.reduce((acc, item) => {
-                            acc[item.answer] = {
-                              label: item.answer,
-                              color: item.fill,
-                            }
-                            return acc
-                          }, {} as Record<string, { label: string; color: string }>)}
-                          className="h-[320px] w-full"
-                        >
-                          <BarChart
-                            data={barData}
-                            margin={{
-                              top: 20,
-                              right: 20,
-                              left: 50,
-                              bottom: 50
-                            }}
-                          >
-                            <CartesianGrid
-                              strokeDasharray="3 3"
-                              stroke="#f3f4f6"
-                              horizontal={true}
-                              vertical={false}
-                              strokeWidth={1}
-                            />
-                            <XAxis
-                              dataKey="answer"
-                              tick={{ fontSize: 12, fill: '#374151', fontWeight: 600 }}
-                              axisLine={{ stroke: '#e5e7eb', strokeWidth: 1 }}
-                              tickLine={{ stroke: '#e5e7eb' }}
-                              angle={-45}
-                              textAnchor="end"
-                              height={80}
-                              label={{ value: 'Answers', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fill: '#374151', fontSize: 13, fontWeight: 600 } }}
-                            />
-                            <YAxis
-                              type="number"
-                              domain={[0, 'dataMax']}
-                              tick={{ fontSize: 12, fill: '#6b7280', fontWeight: 600 }}
-                              axisLine={{ stroke: '#e5e7eb', strokeWidth: 1 }}
-                              tickLine={{ stroke: '#e5e7eb' }}
-                              allowDecimals={false}
-                              width={50}
-                              label={{ value: 'Count', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#374151', fontSize: 13, fontWeight: 600 } }}
-                            />
-                            <ChartTooltip
-                              content={({ active, payload }) => {
-                                if (active && payload && payload.length) {
-                                  const data = payload[0].payload
-                                  return (
-                                    <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-md">
-                                      <p className="text-sm font-bold text-gray-900 mb-1">{data.answer}</p>
-                                      <p className="text-base font-bold text-gray-900">Count: {data.count}</p>
-                                    </div>
-                                  )
-                                }
-                                return null
+                        <div className="h-[320px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={barData}
+                              margin={{
+                                top: 20,
+                                right: 30,
+                                left: 20,
+                                bottom: 50
                               }}
-                            />
-                            <Bar
-                              dataKey="count"
-                              radius={[6, 6, 0, 0]}
-                              minPointSize={2}
-                              fill="#3b82f6"
+                              barCategoryGap="30%"
                             >
-                              {barData.map((entry, index) => {
-                                return (
-                                  <Cell
-                                    key={`cell-${index}`}
-                                    fill={entry.fill}
-                                  />
-                                )
-                              })}
-                            </Bar>
-                          </BarChart>
-                        </ChartContainer>
+                              <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#f3f4f6"
+                                horizontal={true}
+                                vertical={false}
+                                strokeWidth={1}
+                              />
+                              <XAxis
+                                dataKey="answer"
+                                tick={{ fontSize: 11, fill: '#374151', fontWeight: 600 }}
+                                axisLine={{ stroke: '#e5e7eb', strokeWidth: 1 }}
+                                tickLine={{ stroke: '#e5e7eb' }}
+                                angle={-35}
+                                textAnchor="end"
+                                height={70}
+                              />
+                              <YAxis
+                                type="number"
+                                domain={[0, 'dataMax']}
+                                tick={{ fontSize: 12, fill: '#6b7280', fontWeight: 600 }}
+                                axisLine={{ stroke: '#e5e7eb', strokeWidth: 1 }}
+                                tickLine={{ stroke: '#e5e7eb' }}
+                                allowDecimals={false}
+                                width={35}
+                              />
+                              <ChartTooltip
+                                content={({ active, payload }) => {
+                                  if (active && payload && payload.length) {
+                                    const data = payload[0].payload
+                                    return (
+                                      <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-md">
+                                        <p className="text-sm font-bold text-gray-900 mb-1">{data.answer}</p>
+                                        <p className="text-base font-bold text-gray-900">Count: {data.count}</p>
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                }}
+                              />
+                              <Bar
+                                dataKey="count"
+                                radius={[6, 6, 0, 0]}
+                                minPointSize={2}
+                                maxBarSize={60}
+                                fill="#3b82f6"
+                              >
+                                {barData.map((entry, index) => {
+                                  return (
+                                    <Cell
+                                      key={`cell-${index}`}
+                                      fill={entry.fill}
+                                    />
+                                  )
+                                })}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center h-[320px] text-sm text-gray-400 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-200">
                           <svg className="w-16 h-16 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -899,6 +871,6 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
           )
         })}
       </div>
-    </div>
+    </div >
   )
 }
