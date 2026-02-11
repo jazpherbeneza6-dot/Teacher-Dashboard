@@ -4,6 +4,9 @@ import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Bar, BarChart, Pie, PieChart, Cell, XAxis, YAxis, Legend, ResponsiveContainer, CartesianGrid } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { FileDown } from "lucide-react"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 
 interface EvaluationResult {
   departmentName: string
@@ -194,6 +197,267 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
     })
 
 
+  // PDF Export function
+  const exportToPdf = () => {
+    const doc = new jsPDF('p', 'mm', 'a4')
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 20
+    let yPos = 25
+
+    const professorName = evaluations.length > 0 ? evaluations[0].professorName : 'Professor'
+    const darkHeader = [55, 65, 81] as [number, number, number] // #374151
+    const lightRow = [249, 250, 251] as [number, number, number] // #f9fafb
+    const white = [255, 255, 255] as [number, number, number]
+
+    // Title
+    doc.setFontSize(20)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(31, 41, 55)
+    doc.text('Professor Evaluation Results', margin, yPos)
+    yPos += 10
+
+    // Professor name
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(75, 85, 99)
+    doc.text(professorName, margin, yPos)
+    yPos += 12
+
+    // Overall Performance Summary heading
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(31, 41, 55)
+    doc.text('Overall Performance Summary', margin, yPos)
+    yPos += 8
+
+    // Calculate per-section scores (only rating sections, not comments/verbal interpretation)
+    const ratingSections = availableSections.filter(
+      s => s.toLowerCase() !== 'verbal interpretation' && s.toLowerCase() !== 'comments'
+    )
+
+    const sectionScores: Array<{ name: string; percentage: number }> = []
+    let totalPositive = 0
+    let totalAll = 0
+
+    ratingSections.forEach(section => {
+      const sectionResponses = allResponses.filter(
+        r => r.section === section && r.questionType !== 'text'
+      )
+      const total = sectionResponses.length
+      const positive = sectionResponses.filter(
+        r => r.answer === 'Strongly Agree' || r.answer === 'Agree'
+      ).length
+      const pct = total > 0 ? Math.round((positive / total) * 100) : 0
+      sectionScores.push({ name: section, percentage: pct })
+      totalPositive += positive
+      totalAll += total
+    })
+
+    const overallPct = totalAll > 0 ? Math.round((totalPositive / totalAll) * 100) : 0
+
+    // Summary table
+    const summaryBody = sectionScores.map(s => [s.name, `${s.percentage}%`])
+    summaryBody.push(['OVERALL', `${overallPct}%`])
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Section', 'Score']],
+      body: summaryBody,
+      theme: 'plain',
+      margin: { left: margin, right: margin },
+      headStyles: {
+        fillColor: darkHeader,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 10,
+        cellPadding: 4,
+      },
+      bodyStyles: {
+        fontSize: 10,
+        cellPadding: 4,
+        textColor: [31, 41, 55],
+      },
+      columnStyles: {
+        0: { cellWidth: pageWidth - margin * 2 - 30 },
+        1: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+      },
+      alternateRowStyles: {
+        fillColor: lightRow,
+      },
+      didParseCell: (data: any) => {
+        // Style the OVERALL row
+        if (data.section === 'body' && data.row.index === summaryBody.length - 1) {
+          data.cell.styles.fillColor = darkHeader
+          data.cell.styles.textColor = [255, 255, 255]
+          data.cell.styles.fontStyle = 'bold'
+        }
+      },
+    })
+
+    yPos = (doc as any).lastAutoTable.finalY + 15
+
+    // Per-section question tables
+    ratingSections.forEach(section => {
+      const sectionResponses = allResponses.filter(
+        r => r.section === section && r.questionType !== 'text'
+      )
+
+      // Build question data
+      const questionMap: Record<string, { sa: number; a: number; d: number; sd: number; total: number }> = {}
+      const questionOrder: string[] = []
+
+      sectionResponses.forEach(r => {
+        if (!questionMap[r.questionText]) {
+          questionMap[r.questionText] = { sa: 0, a: 0, d: 0, sd: 0, total: 0 }
+          questionOrder.push(r.questionText)
+        }
+        const q = questionMap[r.questionText]
+        if (r.answer === 'Strongly Agree') q.sa++
+        else if (r.answer === 'Agree') q.a++
+        else if (r.answer === 'Disagree') q.d++
+        else if (r.answer === 'Strongly Disagree') q.sd++
+        q.total++
+      })
+
+      if (questionOrder.length === 0) return
+
+      // Check if we need a new page
+      if (yPos > pageHeight - 60) {
+        doc.addPage()
+        yPos = 25
+      }
+
+      // Section heading
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(31, 41, 55)
+      doc.text(section, margin, yPos)
+      yPos += 8
+
+      const tableBody = questionOrder.map((question, idx) => {
+        const q = questionMap[question]
+        return [
+          String(idx + 1),
+          question,
+          String(q.sa),
+          String(q.a),
+          String(q.d),
+          String(q.sd),
+          String(q.total),
+        ]
+      })
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['#', 'Question', 'SA', 'A', 'D', 'SD', 'Total']],
+        body: tableBody,
+        theme: 'plain',
+        margin: { left: margin, right: margin },
+        headStyles: {
+          fillColor: darkHeader,
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 9,
+          cellPadding: 3,
+        },
+        bodyStyles: {
+          fontSize: 9,
+          cellPadding: 3,
+          textColor: [31, 41, 55],
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 15, halign: 'center' },
+          3: { cellWidth: 15, halign: 'center' },
+          4: { cellWidth: 15, halign: 'center' },
+          5: { cellWidth: 15, halign: 'center' },
+          6: { cellWidth: 18, halign: 'center' },
+        },
+        alternateRowStyles: {
+          fillColor: lightRow,
+        },
+      })
+
+      yPos = (doc as any).lastAutoTable.finalY + 15
+    })
+
+    // Comments / Verbal Interpretation section
+    const commentsSections = availableSections.filter(
+      s => s.toLowerCase() === 'verbal interpretation' || s.toLowerCase() === 'comments'
+    )
+
+    if (commentsSections.length > 0) {
+      const commentsResponses = allResponses.filter(
+        r => (r.section?.toLowerCase() === 'verbal interpretation' || r.section?.toLowerCase() === 'comments') && r.questionType === 'text'
+      )
+
+      // Group text answers by question
+      const commentQuestionMap: Record<string, string[]> = {}
+      const commentQuestionOrder: string[] = []
+
+      commentsResponses.forEach(r => {
+        if (!commentQuestionMap[r.questionText]) {
+          commentQuestionMap[r.questionText] = []
+          commentQuestionOrder.push(r.questionText)
+        }
+        if (r.answer && r.answer.trim()) {
+          commentQuestionMap[r.questionText].push(r.answer)
+        }
+      })
+
+      if (commentQuestionOrder.length > 0) {
+        // Check if we need a new page
+        if (yPos > pageHeight - 60) {
+          doc.addPage()
+          yPos = 25
+        }
+
+        doc.setFontSize(14)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(31, 41, 55)
+        doc.text('Comments', margin, yPos)
+        yPos += 8
+
+        commentQuestionOrder.forEach(question => {
+          const answers = commentQuestionMap[question]
+
+          if (yPos > pageHeight - 40) {
+            doc.addPage()
+            yPos = 25
+          }
+
+          doc.setFontSize(10)
+          doc.setFont('helvetica', 'italic')
+          doc.setTextColor(75, 85, 99)
+          const questionLines = doc.splitTextToSize(question, pageWidth - margin * 2)
+          doc.text(questionLines, margin, yPos)
+          yPos += questionLines.length * 5 + 3
+
+          answers.forEach((answer, idx) => {
+            if (yPos > pageHeight - 20) {
+              doc.addPage()
+              yPos = 25
+            }
+
+            doc.setFontSize(10)
+            doc.setFont('helvetica', 'normal')
+            doc.setTextColor(31, 41, 55)
+            const answerText = `${idx + 1}. ${answer}`
+            const answerLines = doc.splitTextToSize(answerText, pageWidth - margin * 2 - 10)
+            doc.text(answerLines, margin + 5, yPos)
+            yPos += answerLines.length * 5 + 2
+          })
+
+          yPos += 5
+        })
+      }
+    }
+
+    doc.save(`Evaluation_Results_${professorName.replace(/\s+/g, '_')}.pdf`)
+  }
+
   return (
     <div className="space-y-8">
       {/* Overview Section */}
@@ -210,8 +474,19 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
       {/* Section Tabs */}
       <Card className="bg-white border border-gray-200/60 shadow-sm rounded-xl overflow-hidden">
         <CardHeader className="pb-4 px-7 pt-6">
-          <CardTitle className="text-lg font-bold text-gray-900">Filter by Section</CardTitle>
-          <CardDescription className="text-sm text-gray-500">Select a category to view questions and results for that section</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg font-bold text-gray-900">Filter by Section</CardTitle>
+              <CardDescription className="text-sm text-gray-500 mt-1">Select a category to view questions and results for that section</CardDescription>
+            </div>
+            <button
+              onClick={exportToPdf}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border bg-red-600 text-white border-red-600 hover:bg-red-700 shadow-sm hover:shadow-md"
+            >
+              <FileDown className="w-4 h-4" />
+              Export PDF
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="px-7 pb-6">
           <div className="flex flex-wrap gap-2">
@@ -443,8 +718,9 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
                               cy="50%"
                               labelLine={false}
                               label={({ name, percent }) => {
-                                if (percent === undefined || percent < 0.05) return '' // Hide labels for very small slices
-                                return `${(percent * 100).toFixed(0)}%`
+                                const p = (percent as number) ?? 0
+                                if (p < 0.05) return '' // Hide labels for very small slices
+                                return `${(p * 100).toFixed(0)}%`
                               }}
                               innerRadius={60}
                               outerRadius={100}
