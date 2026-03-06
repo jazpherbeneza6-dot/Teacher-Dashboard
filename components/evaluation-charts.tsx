@@ -507,7 +507,7 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
       </Card>
 
       {/* Section Summary Card - Hide for verbal interpretation since it has text responses, not ratings */}
-      {selectedSection && selectedSection.toLowerCase() !== "verbal interpretation" && (
+      {selectedSection && selectedSection.toLowerCase() !== "verbal interpretation" && selectedSection.toLowerCase() !== "comments" && (
         <Card className="bg-white border border-gray-200/60 shadow-sm rounded-xl overflow-hidden">
           <div
             className="h-1.5"
