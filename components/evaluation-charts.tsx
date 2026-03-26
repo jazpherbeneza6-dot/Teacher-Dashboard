@@ -22,6 +22,8 @@ interface EvaluationResult {
     section?: string
   }>
   evaluationPeriodId?: string
+  evaluationPeriodStart?: string
+  evaluationPeriodEnd?: string
   createdAt?: any
   submittedAt?: any
 }
@@ -210,18 +212,45 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
     const lightRow = [249, 250, 251] as [number, number, number] // #f9fafb
     const white = [255, 255, 255] as [number, number, number]
 
-    // Title
+    // Title and Evaluation Period
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(31, 41, 55)
     doc.text('Professor Evaluation Results', margin, yPos)
+    
+    // Add evaluation period (start - end) on the right
+    const formatEvalDate = (dateStr?: string) => {
+      if (!dateStr) return null
+      try {
+        return new Date(dateStr).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        })
+      } catch (e) {
+        return null
+      }
+    }
+
+    const periodStart = evaluations.length > 0 ? formatEvalDate(evaluations[0].evaluationPeriodStart) : null
+    const periodEnd = evaluations.length > 0 ? formatEvalDate(evaluations[0].evaluationPeriodEnd) : null
+    
+    const periodText = periodStart && periodEnd 
+      ? `${periodStart} - ${periodEnd}`
+      : periodStart || periodEnd || new Date().toLocaleDateString()
+
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(107, 114, 128)
+    doc.text(`Period: ${periodText}`, pageWidth - margin, yPos, { align: 'right' })
     yPos += 10
 
-    // Professor name
+    // Professor name and department
+    const departmentName = evaluations.length > 0 ? evaluations[0].departmentName : ''
     doc.setFontSize(12)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(75, 85, 99)
-    doc.text(professorName, margin, yPos)
+    doc.text(`${professorName} ${departmentName ? `| ${departmentName}` : ''}`, margin, yPos)
     yPos += 12
 
     // Overall Performance Summary heading
@@ -262,7 +291,7 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
 
     autoTable(doc, {
       startY: yPos,
-      head: [['Section', 'Score']],
+      head: [[{ content: 'Section', styles: { halign: 'left' } }, { content: 'Score', styles: { halign: 'right' } }]],
       body: summaryBody,
       theme: 'plain',
       margin: { left: margin, right: margin },
@@ -295,7 +324,7 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
       },
     })
 
-    yPos = (doc as any).lastAutoTable.finalY + 15
+    yPos = (doc as any).lastAutoTable.finalY + 8
 
     // Per-section question tables
     ratingSections.forEach(section => {
@@ -328,6 +357,25 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
         yPos = 25
       }
 
+      // Rating Legend (Legend Box Design)
+      if (section === ratingSections[0]) {
+        yPos += 2
+        // Drawing a subtle box for the legend
+        doc.setDrawColor(229, 231, 235) // Light gray border
+        doc.setFillColor(249, 250, 251) // Very light gray background
+        doc.roundedRect(margin, yPos - 6, pageWidth - margin * 2, 10, 2, 2, 'FD')
+        
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(55, 65, 81)
+        doc.text('REMINDER:', margin + 5, yPos)
+        
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(8.5)
+        doc.text('SA - Strongly Agree    |    A - Agree    |    D - Disagree    |    SD - Strongly Disagree', margin + 30, yPos)
+        yPos += 12
+      }
+
       // Section heading
       doc.setFontSize(14)
       doc.setFont('helvetica', 'bold')
@@ -350,7 +398,15 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
 
       autoTable(doc, {
         startY: yPos,
-        head: [['#', 'Question', 'SA', 'A', 'D', 'SD', 'Total']],
+        head: [[
+          { content: '#', styles: { halign: 'center' } },
+          { content: 'Question', styles: { halign: 'left' } },
+          { content: 'SA', styles: { halign: 'center' } },
+          { content: 'A', styles: { halign: 'center' } },
+          { content: 'D', styles: { halign: 'center' } },
+          { content: 'SD', styles: { halign: 'center' } },
+          { content: 'Total', styles: { halign: 'center' } }
+        ]],
         body: tableBody,
         theme: 'plain',
         margin: { left: margin, right: margin },
@@ -380,7 +436,7 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
         },
       })
 
-      yPos = (doc as any).lastAutoTable.finalY + 15
+      yPos = (doc as any).lastAutoTable.finalY + 12
     })
 
     // Comments / Verbal Interpretation section

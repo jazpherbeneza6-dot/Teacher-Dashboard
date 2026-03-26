@@ -24,6 +24,7 @@ interface Professor {
   status?: string
   subjectSections?: SubjectSection[]
   subjects?: string[]
+  lastLogin?: string
 }
 
 interface AuthContextType {
@@ -94,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     status: professorData.status || "Active",
                     subjectSections: professorData.subjectSections || [],
                     subjects: professorData.subjects || [],
+                    lastLogin: professorData.lastLogin || undefined,
                   })
 
                   console.log("[v0] Professor session restored:", professorData.name)
@@ -180,6 +182,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Get imageUrl from Firestore (base64 data URL)
       let imageUrl = professorData.imageUrl || professorData.profilePictureUrl || undefined
 
+      const lastLogin = new Date().toISOString()
+      const professorRef = doc(db, "professors", professorDoc.id)
+      await updateDoc(professorRef, { lastLogin })
+
       const professorObj = {
         id: professorDoc.id,
         name: professorData.name,
@@ -194,6 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status: professorData.status || "Active",
         subjectSections: professorData.subjectSections || [],
         subjects: professorData.subjects || [],
+        lastLogin: lastLogin,
       }
 
       setProfessor(professorObj)

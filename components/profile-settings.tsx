@@ -173,8 +173,9 @@ export default function ProfileSettings() {
     if (!file) return
 
     // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setUploadError("Please select an image file")
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg']
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError("Please select a PNG or JPEG image")
       return
     }
 
@@ -355,6 +356,27 @@ export default function ProfileSettings() {
       .toUpperCase()
   }
 
+  const formatLastLogin = (dateString?: string) => {
+    const date = dateString ? new Date(dateString) : new Date()
+    try {
+      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true
+      })
+
+      const dateFormatter = new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
+
+      return `${dateFormatter.format(date)} at ${timeFormatter.format(date)}`
+    } catch (e) {
+      return "Invalid date"
+    }
+  }
+
   if (!professor) return null
 
   // Get theme colors for dynamic styling
@@ -462,7 +484,7 @@ export default function ProfileSettings() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/png, image/jpeg"
                     onChange={handleFileSelect}
                     className="hidden"
                     aria-label="Upload profile picture"
@@ -513,8 +535,11 @@ export default function ProfileSettings() {
                       </p>
                     </div>
                   )}
-                  <p className="text-xs font-medium text-center" style={{ color: mutedText }}>
-                    Max 5MB
+                  <p className="text-xs font-bold text-center leading-snug" style={{ color: textColor }}>
+                    Supported: PNG, JPEG
+                    <span className="block text-[10px] font-medium mt-1 opacity-80">
+                      Max File Size: 5MB
+                    </span>
                   </p>
                 </div>
               </div>
@@ -979,7 +1004,9 @@ export default function ProfileSettings() {
                   </p>
                   <ul className="list-disc list-inside space-y-1 text-sm font-medium" style={{ color: mutedText }}>
                     <li>At least 6 characters long</li>
+                    <li>Must include at least one uppercase letter (A–Z), at least one lowercase letter (a–z).</li>
                     <li>Must be different from your current password</li>
+                    <li>Require at least one special character (@#$%^&*)</li>
                   </ul>
                 </div>
 
@@ -1094,7 +1121,7 @@ export default function ProfileSettings() {
                     Last Login
                   </Label>
                   <span className="text-sm font-bold" style={{ color: textColor }}>
-                    Today, 2:30 PM
+                    {formatLastLogin(professor.lastLogin)}
                   </span>
                 </div>
               </div>
