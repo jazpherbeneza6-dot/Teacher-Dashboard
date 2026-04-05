@@ -7,6 +7,16 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { FileDown } from "lucide-react"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
+import {
+  ANSWER_VALUES,
+  ANSWER_LABELS,
+  answerToValue,
+  getInterpretation,
+  computeEvaluation,
+  computeSectionMean,
+  computeItemMean,
+  type EvalResponse,
+} from "@/lib/evaluation-calc"
 
 interface EvaluationResult {
   departmentName: string
@@ -55,9 +65,9 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
   const SECTIONS = [
     "Instructional Competence",
     "Classroom Management",
-    "Research",
-    "Student Support & Development",
     "Professionalism & Personal Qualities",
+    "Student Support & Development",
+    "Research",
     "verbal interpretation"
   ]
 
@@ -95,31 +105,17 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
     return allResponses.filter((response) => response.section === selectedSection)
   }, [allResponses, selectedSection])
 
-  // Calculate section-specific performance
+  // Calculate section-specific performance using CHED weighted mean
   const sectionPerformance = useMemo(() => {
-    const total = filteredResponses.length
-    const positive = filteredResponses.filter(
-      (r) => r.answer === "Strongly Agree" || r.answer === "Agree"
-    ).length
-    const percentage = total > 0 ? Math.round((positive / total) * 100) : 0
-
-    let rating = "Needs Improvement"
-    let ratingColor = "#ef4444" // Red
-    if (percentage >= 90) {
-      rating = "Excellent"
-      ratingColor = "#10b981" // Green
-    } else if (percentage >= 80) {
-      rating = "Very Good"
-      ratingColor = "#3b82f6" // Blue
-    } else if (percentage >= 70) {
-      rating = "Good"
-      ratingColor = "#8b5cf6" // Purple
-    } else if (percentage >= 60) {
-      rating = "Satisfactory"
-      ratingColor = "#f59e0b" // Amber
+    const result = computeSectionMean(filteredResponses)
+    return {
+      mean: result.mean,
+      interpretation: result.interpretation,
+      ratingColor: result.interpretation.color,
+      rating: result.interpretation.label,
+      totalResponses: result.totalResponses,
+      totalQuestions: result.totalQuestions,
     }
-
-    return { total, positive, percentage, rating, ratingColor }
   }, [filteredResponses])
 
   const answerCounts: Record<string, number> = {}
@@ -134,12 +130,12 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
   }))
 
   // Enhanced color palette for better visual distinction
-  const COLORS = {
-    "Strongly Agree": "#10b981", // Green
-    Agree: "#3b82f6", // Blue
-    Undecided: "#f59e0b", // Amber
-    Disagree: "#f97316", // Orange
-    "Strongly Disagree": "#ef4444", // Red
+  const COLORS: Record<string, string> = {
+    "Excellent": "#10b981",          // Green
+    "Very Satisfactory": "#3b82f6",  // Blue
+    "Satisfactory": "#8b5cf6",       // Purple
+    "Fair": "#f59e0b",               // Amber
+    "Poor": "#ef4444",               // Red
   }
 
   // Additional vibrant colors for variety
@@ -189,11 +185,11 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
       const total = Object.values(answers).reduce((sum, count) => sum + count, 0)
       return {
         question: question.length > 30 ? question.substring(0, 30) + "..." : question,
-        "Strongly Agree": answers["Strongly Agree"] || 0,
-        Agree: answers["Agree"] || 0,
-        Undecided: answers["Undecided"] || 0,
-        Disagree: answers["Disagree"] || 0,
-        "Strongly Disagree": answers["Strongly Disagree"] || 0,
+        "Excellent": answers["Excellent"] || 0,
+        "Very Satisfactory": answers["Very Satisfactory"] || 0,
+        "Satisfactory": answers["Satisfactory"] || 0,
+        "Fair": answers["Fair"] || 0,
+        "Poor": answers["Poor"] || 0,
         total,
       }
     })
@@ -260,38 +256,24 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
     doc.text('Overall Performance Summary', margin, yPos)
     yPos += 8
 
-    // Calculate per-section scores (only rating sections, not comments/verbal interpretation)
+    // Calculate per-section scores using CHED weighted mean
     const ratingSections = availableSections.filter(
       s => s.toLowerCase() !== 'verbal interpretation' && s.toLowerCase() !== 'comments'
     )
 
-    const sectionScores: Array<{ name: string; percentage: number }> = []
-    let totalPositive = 0
-    let totalAll = 0
+    // Use the shared evaluation computation
+    const evalSummary = computeEvaluation(allResponses, evaluations.length)
 
-    ratingSections.forEach(section => {
-      const sectionResponses = allResponses.filter(
-        r => r.section === section && r.questionType !== 'text'
-      )
-      const total = sectionResponses.length
-      const positive = sectionResponses.filter(
-        r => r.answer === 'Strongly Agree' || r.answer === 'Agree'
-      ).length
-      const pct = total > 0 ? Math.round((positive / total) * 100) : 0
-      sectionScores.push({ name: section, percentage: pct })
-      totalPositive += positive
-      totalAll += total
-    })
-
-    const overallPct = totalAll > 0 ? Math.round((totalPositive / totalAll) * 100) : 0
-
-    // Summary table
-    const summaryBody = sectionScores.map(s => [s.name, `${s.percentage}%`])
-    summaryBody.push(['OVERALL', `${overallPct}%`])
+    // Build summary rows: Section Name | Average Score
+    const summaryBody = evalSummary.areas.map(a => [
+      a.canonicalName,
+      a.areaMean.toFixed(2),
+    ])
+    summaryBody.push(['FINAL RATING', evalSummary.finalRating.toFixed(2)])
 
     autoTable(doc, {
       startY: yPos,
-      head: [[{ content: 'Section', styles: { halign: 'left' } }, { content: 'Score', styles: { halign: 'right' } }]],
+      head: [[{ content: 'Section Name', styles: { halign: 'left' } }, { content: 'Average Score', styles: { halign: 'right' } }]],
       body: summaryBody,
       theme: 'plain',
       margin: { left: margin, right: margin },
@@ -308,14 +290,14 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
         textColor: [31, 41, 55],
       },
       columnStyles: {
-        0: { cellWidth: pageWidth - margin * 2 - 30 },
-        1: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+        0: { cellWidth: pageWidth - margin * 2 - 35 },
+        1: { cellWidth: 35, halign: 'right', fontStyle: 'bold' },
       },
       alternateRowStyles: {
         fillColor: lightRow,
       },
       didParseCell: (data: any) => {
-        // Style the OVERALL row
+        // Style the FINAL RATING row
         if (data.section === 'body' && data.row.index === summaryBody.length - 1) {
           data.cell.styles.fillColor = darkHeader
           data.cell.styles.textColor = [255, 255, 255]
@@ -332,20 +314,22 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
         r => r.section === section && r.questionType !== 'text'
       )
 
-      // Build question data
-      const questionMap: Record<string, { sa: number; a: number; d: number; sd: number; total: number }> = {}
+      // Build question data with the new scale: 5-Excellent, 4-Very Satisfactory, 3-Satisfactory, 2-Fair, 1-Poor
+      const questionMap: Record<string, { e: number; vs: number; s: number; f: number; p: number; total: number; answers: string[] }> = {}
       const questionOrder: string[] = []
 
       sectionResponses.forEach(r => {
         if (!questionMap[r.questionText]) {
-          questionMap[r.questionText] = { sa: 0, a: 0, d: 0, sd: 0, total: 0 }
+          questionMap[r.questionText] = { e: 0, vs: 0, s: 0, f: 0, p: 0, total: 0, answers: [] }
           questionOrder.push(r.questionText)
         }
         const q = questionMap[r.questionText]
-        if (r.answer === 'Strongly Agree') q.sa++
-        else if (r.answer === 'Agree') q.a++
-        else if (r.answer === 'Disagree') q.d++
-        else if (r.answer === 'Strongly Disagree') q.sd++
+        q.answers.push(r.answer)
+        if (r.answer === 'Excellent') q.e++
+        else if (r.answer === 'Very Satisfactory') q.vs++
+        else if (r.answer === 'Satisfactory') q.s++
+        else if (r.answer === 'Fair') q.f++
+        else if (r.answer === 'Poor') q.p++
         q.total++
       })
 
@@ -360,20 +344,50 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
       // Rating Legend (Legend Box Design)
       if (section === ratingSections[0]) {
         yPos += 2
-        // Drawing a subtle box for the legend
+        // Drawing a box for the rating scale description
+        const boxStartY = yPos - 6
+        const scaleBoxHeight = 44
         doc.setDrawColor(229, 231, 235) // Light gray border
         doc.setFillColor(249, 250, 251) // Very light gray background
-        doc.roundedRect(margin, yPos - 6, pageWidth - margin * 2, 10, 2, 2, 'FD')
+        doc.roundedRect(margin, boxStartY, pageWidth - margin * 2, scaleBoxHeight, 2, 2, 'FD')
         
         doc.setFontSize(9)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(55, 65, 81)
-        doc.text('REMINDER:', margin + 5, yPos)
-        
+        doc.text('RATING SCALE DESCRIPTION:', margin + 5, yPos)
+        yPos += 5
+
         doc.setFont('helvetica', 'normal')
-        doc.setFontSize(8.5)
-        doc.text('SA - Strongly Agree    |    A - Agree    |    D - Disagree    |    SD - Strongly Disagree', margin + 30, yPos)
-        yPos += 12
+        doc.setFontSize(8)
+        doc.setTextColor(75, 85, 99)
+
+        const scaleItems = [
+          '5 – Excellent (consistently demonstrates outstanding classroom management skills)',
+          '4 – Very Satisfactory (often manages the class effectively, with minor areas for improvement)',
+          '3 – Satisfactory (generally maintains acceptable classroom order and organization)',
+          '2 – Fair (occasionally struggles with classroom control or organization)',
+          '1 – Poor (rarely demonstrates effective classroom management)',
+        ]
+
+        scaleItems.forEach(item => {
+          doc.text(item, margin + 5, yPos)
+          yPos += 4
+        })
+
+        // Separator line inside the box
+        yPos += 1
+        doc.setDrawColor(210, 214, 220)
+        doc.line(margin + 5, yPos, pageWidth - margin - 5, yPos)
+
+        // Column legend inside the box (moved yPos slightly for better alignment)
+        yPos += 4
+        doc.setFontSize(8)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(55, 65, 81)
+        doc.text('Column Legend:   E = Excellent   |   VS = Very Satisfactory   |   S = Satisfactory   |   F = Fair   |   P = Poor', margin + 5, yPos)
+
+        // Jump yPos to after the box with proper spacing
+        yPos = boxStartY + scaleBoxHeight + 8
       }
 
       // Section heading
@@ -388,10 +402,11 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
         return [
           String(idx + 1),
           question,
-          String(q.sa),
-          String(q.a),
-          String(q.d),
-          String(q.sd),
+          String(q.e),
+          String(q.vs),
+          String(q.s),
+          String(q.f),
+          String(q.p),
           String(q.total),
         ]
       })
@@ -401,10 +416,11 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
         head: [[
           { content: '#', styles: { halign: 'center' } },
           { content: 'Question', styles: { halign: 'left' } },
-          { content: 'SA', styles: { halign: 'center' } },
-          { content: 'A', styles: { halign: 'center' } },
-          { content: 'D', styles: { halign: 'center' } },
-          { content: 'SD', styles: { halign: 'center' } },
+          { content: 'E', styles: { halign: 'center' } },
+          { content: 'VS', styles: { halign: 'center' } },
+          { content: 'S', styles: { halign: 'center' } },
+          { content: 'F', styles: { halign: 'center' } },
+          { content: 'P', styles: { halign: 'center' } },
           { content: 'Total', styles: { halign: 'center' } }
         ]],
         body: tableBody,
@@ -425,11 +441,12 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
         columnStyles: {
           0: { cellWidth: 10, halign: 'center' },
           1: { cellWidth: 'auto' },
-          2: { cellWidth: 15, halign: 'center' },
-          3: { cellWidth: 15, halign: 'center' },
-          4: { cellWidth: 15, halign: 'center' },
-          5: { cellWidth: 15, halign: 'center' },
-          6: { cellWidth: 18, halign: 'center' },
+          2: { cellWidth: 14, halign: 'center' },
+          3: { cellWidth: 14, halign: 'center' },
+          4: { cellWidth: 14, halign: 'center' },
+          5: { cellWidth: 14, halign: 'center' },
+          6: { cellWidth: 14, halign: 'center' },
+          7: { cellWidth: 16, halign: 'center' },
         },
         alternateRowStyles: {
           fillColor: lightRow,
@@ -574,16 +591,17 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
               <div>
                 <h3 className="text-xl font-bold text-gray-900 mb-1">{selectedSection}</h3>
                 <p className="text-sm text-gray-500 font-medium">
-                  {sectionPerformance.total} total responses • {sectionPerformance.positive} positive (Strongly Agree + Agree)
+                  {sectionPerformance.totalResponses} total responses • {sectionPerformance.totalQuestions} questions
                 </p>
               </div>
               <div className="text-right">
                 <div
-                  className="text-4xl font-bold mb-1"
+                  className="text-4xl font-bold mb-0.5"
                   style={{ color: sectionPerformance.ratingColor }}
                 >
-                  {sectionPerformance.percentage}%
+                  {sectionPerformance.mean.toFixed(2)}
                 </div>
+                <p className="text-xs text-gray-400 font-semibold mb-1">out of 5.00</p>
                 <div
                   className="inline-block px-3 py-1 text-sm font-bold rounded-full"
                   style={{
@@ -602,34 +620,34 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width: `${sectionPerformance.percentage}%`,
+                    width: `${Math.min((sectionPerformance.mean / 5) * 100, 100)}%`,
                     backgroundColor: sectionPerformance.ratingColor
                   }}
                 ></div>
               </div>
             </div>
 
-            {/* Performance Legend */}
+            {/* Interpretation Scale Legend */}
             <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-gray-500">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                Excellent (90-100%)
+                Excellent (4.50–5.00)
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                Very Good (80-89%)
+                Very Good (3.50–4.49)
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                Good (70-79%)
+                Good (2.50–3.49)
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                Satisfactory (60-69%)
+                Fair (1.50–2.49)
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                Needs Improvement (&lt;60%)
+                Poor (1.00–1.49)
               </span>
             </div>
           </CardContent>
@@ -648,13 +666,13 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
             value,
           }))
 
-          // Create bar data sorted by answer type for consistent ordering
-          const answerOrder = ["Strongly Agree", "Agree", "Undecided", "Disagree", "Strongly Disagree"]
+          // Create bar data sorted by answer type (new scale)
+          const answerOrder = ["Excellent", "Very Satisfactory", "Satisfactory", "Fair", "Poor"]
           const barData = answerOrder
             .filter(answer => answers[answer] && answers[answer] > 0)
             .map((name) => {
               const value = answers[name] || 0
-              const color = COLORS[name as keyof typeof COLORS] || "#3b82f6"
+              const color = COLORS[name] || "#3b82f6"
               return {
                 answer: name,
                 count: value,

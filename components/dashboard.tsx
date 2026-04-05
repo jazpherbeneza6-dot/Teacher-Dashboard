@@ -22,6 +22,7 @@ import EvaluationCharts from "./evaluation-charts"
 import Image from "next/image"
 import { collection, query, where, doc, onSnapshot, Timestamp, getDocs } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { computeEvaluation, type EvaluationSummary } from "@/lib/evaluation-calc"
 
 interface EvaluationResult {
   departmentName: string
@@ -391,37 +392,17 @@ export default function Dashboard() {
   }
 
 
-  // Calculate overall performance from evaluation results
-  const overallPerformance = useMemo(() => {
-    // Get all responses from completed evaluations, excluding text-type (verbal interpretation/comments)
-    const allRatingResponses = evaluations
-      .filter(e => e.isComplete)
-      .flatMap(e => e.responses)
-      .filter(r => r.questionType !== 'text' && r.section?.toLowerCase() !== 'verbal interpretation' && r.section?.toLowerCase() !== 'comments')
+  // Calculate overall performance using CHED-adapted weighted mean (40-20-20-10-10)
+  const overallPerformance = useMemo((): EvaluationSummary & { ratingColor: string } => {
+    const completedEvals = evaluations.filter(e => e.isComplete)
+    const allRatingResponses = completedEvals.flatMap(e => e.responses)
 
-    const total = allRatingResponses.length
-    const positive = allRatingResponses.filter(
-      r => r.answer === 'Strongly Agree' || r.answer === 'Agree'
-    ).length
-    const percentage = total > 0 ? Math.round((positive / total) * 100) : 0
+    const summary = computeEvaluation(allRatingResponses, completedEvals.length)
 
-    let rating = 'Needs Improvement'
-    let ratingColor = '#ef4444'
-    if (percentage >= 90) {
-      rating = 'Excellent'
-      ratingColor = '#10b981'
-    } else if (percentage >= 80) {
-      rating = 'Very Good'
-      ratingColor = '#3b82f6'
-    } else if (percentage >= 70) {
-      rating = 'Good'
-      ratingColor = '#8b5cf6'
-    } else if (percentage >= 60) {
-      rating = 'Satisfactory'
-      ratingColor = '#f59e0b'
+    return {
+      ...summary,
+      ratingColor: summary.interpretation.color,
     }
-
-    return { total, positive, percentage, rating, ratingColor }
   }, [evaluations])
 
   if (!professor) return null
@@ -499,15 +480,6 @@ export default function Dashboard() {
                   LA Concepcion College
                 </p>
               </div>
-            </div>
-            <div className="hidden lg:flex items-center">
-              <div className="h-8 w-px bg-gray-200 mx-4"></div>
-              <Badge
-                variant="secondary"
-                className="text-sm px-4 py-1.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200/60 font-semibold"
-              >
-                {professor.departmentName}
-              </Badge>
             </div>
           </div>
 
@@ -685,15 +657,17 @@ export default function Dashboard() {
         {activeView === "dashboard" && (
           <div className="max-w-7xl mx-auto space-y-10">
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-              <Card className="group bg-white border border-gray-200/60 shadow-sm hover:shadow-lg hover:border-blue-200/60 transition-all duration-200 rounded-xl overflow-hidden relative">
+              <Card className="group bg-white border border-gray-200/60 shadow-sm hover:shadow-lg hover:border-blue-200/60 transition-all duration-200 rounded-xl overflow-hidden relative flex flex-col h-full">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <CardHeader className="flex flex-row items-start justify-between pb-4 px-7 pt-7">
+                <CardHeader className="flex flex-row items-start justify-between pb-4 px-7 pt-7 flex-1">
                   <div className="flex-1">
                     <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Total Students</CardTitle>
-                    <div className="text-5xl font-bold text-gray-900 mb-3 leading-none">{studentsLoading ? "..." : totalStudents}</div>
-                    <p className="text-sm text-gray-500 font-semibold">Students handled</p>
+                    <div className="min-h-[100px] flex flex-col justify-start">
+                      <div className="text-5xl font-bold text-gray-900 mb-3 leading-none">{studentsLoading ? "..." : totalStudents}</div>
+                      <p className="text-sm text-gray-500 font-semibold mt-auto">Students handled</p>
+                    </div>
                   </div>
-                  <div className="p-2 bg-blue-50 rounded-xl ring-1 ring-blue-100/50 flex items-center justify-center w-16 h-16 flex-shrink-0">
+                  <div className="p-2 bg-blue-50 rounded-xl ring-1 ring-blue-100/50 flex items-center justify-center w-16 h-16 flex-shrink-0 mt-8">
                     <Image
                       src="/icon 1.png"
                       alt="Total Students"
@@ -703,7 +677,7 @@ export default function Dashboard() {
                     />
                   </div>
                 </CardHeader>
-                <CardContent className="px-7 pb-7 pt-0">
+                <CardContent className="px-7 pb-7 pt-0 mt-auto">
                   <div className="flex items-center gap-2.5 text-sm text-gray-400 font-medium">
                     <div className="w-2 h-2 rounded-full bg-blue-400"></div>
                     <span>Based on sections</span>
@@ -711,17 +685,19 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="group bg-white border border-gray-200/60 shadow-sm hover:shadow-lg hover:border-green-200/60 transition-all duration-200 rounded-xl overflow-hidden relative">
+              <Card className="group bg-white border border-gray-200/60 shadow-sm hover:shadow-lg hover:border-green-200/60 transition-all duration-200 rounded-xl overflow-hidden relative flex flex-col h-full">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-green-500 to-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <CardHeader className="flex flex-row items-start justify-between pb-4 px-7 pt-7">
+                <CardHeader className="flex flex-row items-start justify-between pb-4 px-7 pt-7 flex-1">
                   <div className="flex-1">
                     <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Completed Total Evaluations</CardTitle>
-                    <div className="text-5xl font-bold text-gray-900 mb-3 leading-none">
-                      {evaluations.filter((e) => e.isComplete).length}
+                    <div className="min-h-[100px] flex flex-col justify-start">
+                      <div className="text-5xl font-bold text-gray-900 mb-3 leading-none">
+                        {evaluations.filter((e) => e.isComplete).length}
+                      </div>
+                      <p className="text-sm text-gray-500 font-semibold mt-auto">Students who evaluated</p>
                     </div>
-                    <p className="text-sm text-gray-500 font-semibold">Students who evaluated</p>
                   </div>
-                  <div className="p-2 bg-green-50 rounded-xl ring-1 ring-green-100/50 flex items-center justify-center w-16 h-16 flex-shrink-0">
+                  <div className="p-2 bg-green-50 rounded-xl ring-1 ring-green-100/50 flex items-center justify-center w-16 h-16 flex-shrink-0 mt-8">
                     <Image
                       src="/icon 2.png"
                       alt="Completed Evaluations"
@@ -731,7 +707,7 @@ export default function Dashboard() {
                     />
                   </div>
                 </CardHeader>
-                <CardContent className="px-7 pb-7 pt-0">
+                <CardContent className="px-7 pb-7 pt-0 mt-auto">
                   <div className="flex items-center gap-2.5 text-sm text-gray-400 font-medium">
                     <div className="w-2 h-2 rounded-full bg-green-400"></div>
                     <span>Fully completed</span>
@@ -739,52 +715,55 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="group bg-white border border-gray-200/60 shadow-sm hover:shadow-lg hover:border-amber-200/60 transition-all duration-200 rounded-xl overflow-hidden relative">
+              <Card className="group bg-white border border-gray-200/60 shadow-sm hover:shadow-lg hover:border-amber-200/60 transition-all duration-200 rounded-xl overflow-hidden relative flex flex-col h-full">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 to-orange-400 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <CardHeader className="flex flex-row items-start justify-between pb-4 px-7 pt-7">
+                <CardHeader className="flex flex-row items-start justify-between pb-4 px-7 pt-7 flex-1">
                   <div className="flex-1">
                     <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Overall Performance</CardTitle>
-                    {evaluations.filter(e => e.isComplete).length > 0 ? (
-                      <>
-                        <div className="text-5xl font-bold mb-3 leading-none" style={{ color: overallPerformance.ratingColor }}>
-                          {overallPerformance.percentage}%
-                        </div>
-                        <div
-                          className="inline-block px-3 py-1 text-sm font-bold rounded-full"
-                          style={{
-                            backgroundColor: `${overallPerformance.ratingColor}15`,
-                            color: overallPerformance.ratingColor
-                          }}
-                        >
-                          {overallPerformance.rating}
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-5xl font-bold text-gray-300 mb-3 leading-none">—</div>
-                        <p className="text-sm text-gray-400 font-semibold">No data yet</p>
-                      </>
-                    )}
+                    <div className="min-h-[100px] flex flex-col justify-start">
+                      {evaluations.filter(e => e.isComplete).length > 0 ? (
+                        <>
+                          <div className="text-5xl font-bold mb-1 leading-none" style={{ color: overallPerformance.ratingColor }}>
+                            {overallPerformance.finalRating.toFixed(2)}
+                          </div>
+                          <p className="text-xs text-gray-400 font-semibold mb-3">out of 5.00</p>
+                          <div
+                            className="inline-block px-3 py-1 text-sm font-bold rounded-full w-fit"
+                            style={{
+                              backgroundColor: `${overallPerformance.ratingColor}15`,
+                              color: overallPerformance.ratingColor
+                            }}
+                          >
+                            {overallPerformance.interpretation.label}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-5xl font-bold text-gray-300 mb-3 leading-none">—</div>
+                          <p className="text-sm text-gray-400 font-semibold">No data yet</p>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="p-2 bg-amber-50 rounded-xl ring-1 ring-amber-100/50 flex items-center justify-center w-16 h-16 flex-shrink-0">
+                  <div className="p-2 bg-amber-50 rounded-xl ring-1 ring-amber-100/50 flex items-center justify-center w-16 h-16 flex-shrink-0 mt-8">
                     <TrendingUp className="w-8 h-8 text-amber-500" />
                   </div>
                 </CardHeader>
-                <CardContent className="px-7 pb-7 pt-0">
+                <CardContent className="px-7 pb-7 pt-0 mt-auto">
                   {evaluations.filter(e => e.isComplete).length > 0 ? (
                     <div className="space-y-2">
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all duration-500"
                           style={{
-                            width: `${overallPerformance.percentage}%`,
+                            width: `${Math.min((overallPerformance.finalRating / 5) * 100, 100)}%`,
                             backgroundColor: overallPerformance.ratingColor
                           }}
                         ></div>
                       </div>
                       <div className="flex items-center gap-2.5 text-sm text-gray-400 font-medium">
                         <div className="w-2 h-2 rounded-full" style={{ backgroundColor: overallPerformance.ratingColor }}></div>
-                        <span>Based on {overallPerformance.total} responses</span>
+                        <span>Based on {overallPerformance.totalRespondents} respondent{overallPerformance.totalRespondents !== 1 ? 's' : ''}</span>
                       </div>
                     </div>
                   ) : (
@@ -796,15 +775,17 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              <Card className="group bg-white border border-gray-200/60 shadow-sm hover:shadow-lg hover:border-purple-200/60 transition-all duration-200 rounded-xl overflow-hidden relative">
+              <Card className="group bg-white border border-gray-200/60 shadow-sm hover:shadow-lg hover:border-purple-200/60 transition-all duration-200 rounded-xl overflow-hidden relative flex flex-col h-full">
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-500 to-pink-400 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <CardHeader className="flex flex-row items-start justify-between pb-4 px-7 pt-7">
+                <CardHeader className="flex flex-row items-start justify-between pb-4 px-7 pt-7 flex-1">
                   <div className="flex-1">
                     <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Department</CardTitle>
-                    <div className="text-3xl font-bold text-gray-900 mb-3 leading-tight">{professor.departmentName}</div>
-                    <p className="text-sm text-gray-500 font-semibold">Your department</p>
+                    <div className="min-h-[100px] flex flex-col justify-start">
+                      <div className="text-3xl font-bold text-gray-900 mb-3 leading-tight uppercase tracking-tight">{professor.departmentName}</div>
+                      <p className="text-sm text-gray-500 font-semibold mt-auto">Your department</p>
+                    </div>
                   </div>
-                  <div className="p-2 bg-purple-50 rounded-xl ring-1 ring-purple-100/50 flex items-center justify-center w-16 h-16 flex-shrink-0">
+                  <div className="p-2 bg-purple-50 rounded-xl ring-1 ring-purple-100/50 flex items-center justify-center w-16 h-16 flex-shrink-0 mt-8">
                     <Image
                       src="/icon 4.png"
                       alt="Department"
@@ -814,7 +795,7 @@ export default function Dashboard() {
                     />
                   </div>
                 </CardHeader>
-                <CardContent className="px-7 pb-7 pt-0">
+                <CardContent className="px-7 pb-7 pt-0 mt-auto">
                   <div className="flex items-center gap-2.5 text-sm text-gray-400 font-medium">
                     <div className="w-2 h-2 rounded-full bg-purple-400"></div>
                     <span>Active</span>
