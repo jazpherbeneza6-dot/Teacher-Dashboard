@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Bar, BarChart, Pie, PieChart, Cell, XAxis, YAxis, Legend, ResponsiveContainer, CartesianGrid } from "recharts"
+import { Bar, BarChart, Pie, PieChart, Cell, XAxis, YAxis, Legend, ResponsiveContainer, CartesianGrid, Label } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { FileDown } from "lucide-react"
 import jsPDF from "jspdf"
@@ -153,6 +153,26 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
   // Function to get a color from gradient palette
   const getGradientColor = (index: number) => {
     return GRADIENT_COLORS[index % GRADIENT_COLORS.length]
+  }
+
+  // Custom Tick for X-Axis to handle long labels without truncation
+  const renderCustomAxisTick = ({ x, y, payload }: any) => {
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text
+          x={0}
+          y={0}
+          dy={16}
+          textAnchor="end"
+          fill="#4b5563"
+          fontSize={11}
+          fontWeight={600}
+          transform="rotate(-35)"
+        >
+          {payload.value}
+        </text>
+      </g>
+    )
   }
 
   // Build question counts from filtered responses
@@ -666,19 +686,18 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
             value,
           }))
 
-          // Create bar data sorted by answer type (new scale)
+          // Create bar data sorted by answer type (new scale) - Show all categories
           const answerOrder = ["Excellent", "Very Satisfactory", "Satisfactory", "Fair", "Poor"]
-          const barData = answerOrder
-            .filter(answer => answers[answer] && answers[answer] > 0)
-            .map((name) => {
-              const value = answers[name] || 0
-              const color = COLORS[name] || "#3b82f6"
-              return {
-                answer: name,
-                count: value,
-                fill: color
-              }
-            })
+          const barData = answerOrder.map((name) => {
+            const value = answers[name] || 0
+            // Using a uniform blue color to match the requested design
+            const color = "#3b82f6" 
+            return {
+              answer: name,
+              count: value,
+              fill: color
+            }
+          })
 
           const total = questionType === 'text' ? textAnswers.length : Object.values(answers).reduce((sum, count) => sum + count, 0)
           const colors = ['from-blue-500 to-blue-400', 'from-purple-500 to-pink-400', 'from-emerald-500 to-teal-400', 'from-amber-500 to-orange-400', 'from-indigo-500 to-purple-400']
@@ -863,12 +882,12 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
                             <BarChart
                               data={barData}
                               margin={{
-                                top: 20,
+                                top: 30,
                                 right: 30,
-                                left: 20,
-                                bottom: 50
+                                left: 40,
+                                bottom: 60
                               }}
-                              barCategoryGap="30%"
+                              barCategoryGap="25%"
                             >
                               <CartesianGrid
                                 strokeDasharray="3 3"
@@ -879,30 +898,63 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
                               />
                               <XAxis
                                 dataKey="answer"
-                                tick={{ fontSize: 11, fill: '#374151', fontWeight: 600 }}
+                                tick={renderCustomAxisTick}
                                 axisLine={{ stroke: '#e5e7eb', strokeWidth: 1 }}
-                                tickLine={{ stroke: '#e5e7eb' }}
-                                angle={-35}
-                                textAnchor="end"
-                                height={70}
-                              />
+                                tickLine={false}
+                                height={80}
+                                interval={0}
+                              >
+                                <Label
+                                  value="Answers"
+                                  position="insideBottom"
+                                  offset={-45}
+                                  style={{
+                                    fontSize: '13px',
+                                    fontWeight: 'bold',
+                                    fontStyle: 'italic',
+                                    fill: '#374151',
+                                    textAnchor: 'middle'
+                                  }}
+                                />
+                              </XAxis>
                               <YAxis
                                 type="number"
                                 domain={[0, 'dataMax']}
                                 tick={{ fontSize: 12, fill: '#6b7280', fontWeight: 600 }}
                                 axisLine={{ stroke: '#e5e7eb', strokeWidth: 1 }}
-                                tickLine={{ stroke: '#e5e7eb' }}
+                                tickLine={false}
                                 allowDecimals={false}
-                                width={35}
-                              />
+                                width={45}
+                              >
+                                <Label
+                                  value="Count"
+                                  angle={-90}
+                                  position="insideLeft"
+                                  offset={-30}
+                                  style={{
+                                    fontSize: '13px',
+                                    fontWeight: 'bold',
+                                    fontStyle: 'italic',
+                                    fill: '#374151',
+                                    textAnchor: 'middle'
+                                  }}
+                                />
+                              </YAxis>
                               <ChartTooltip
+                                cursor={{ fill: '#f9fafb', radius: 4 }}
                                 content={({ active, payload }) => {
                                   if (active && payload && payload.length) {
                                     const data = payload[0].payload
                                     return (
-                                      <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-md">
-                                        <p className="text-sm font-bold text-gray-900 mb-1">{data.answer}</p>
-                                        <p className="text-base font-bold text-gray-900">Count: {data.count}</p>
+                                      <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-xl animate-in fade-in zoom-in duration-200">
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: data.fill }} />
+                                          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{data.answer}</p>
+                                        </div>
+                                        <div className="flex items-baseline gap-2">
+                                          <p className="text-xl font-black text-gray-900">{data.count}</p>
+                                          <p className="text-xs text-gray-400 font-bold">RESPONSES</p>
+                                        </div>
                                       </div>
                                     )
                                   }
@@ -912,18 +964,21 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
                               <Bar
                                 dataKey="count"
                                 radius={[6, 6, 0, 0]}
-                                minPointSize={2}
-                                maxBarSize={60}
-                                fill="#3b82f6"
+                                minPointSize={4}
+                                maxBarSize={55}
+                                animationDuration={1500}
+                                animationEasing="ease-out"
                               >
-                                {barData.map((entry, index) => {
-                                  return (
-                                    <Cell
-                                      key={`cell-${index}`}
-                                      fill={entry.fill}
-                                    />
-                                  )
-                                })}
+                                {barData.map((entry, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry.fill}
+                                    style={{
+                                      filter: `drop-shadow(0 4px 6px ${entry.fill}25)`,
+                                      transition: 'all 0.3s ease'
+                                    }}
+                                  />
+                                ))}
                               </Bar>
                             </BarChart>
                           </ResponsiveContainer>
