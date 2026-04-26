@@ -32,6 +32,7 @@ interface EvaluationResult {
     section?: string
   }>
   evaluationPeriodId?: string
+  semester?: string // Added semester field
   evaluationPeriodStart?: string
   evaluationPeriodEnd?: string
   createdAt?: any
@@ -228,13 +229,14 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
     const lightRow = [249, 250, 251] as [number, number, number] // #f9fafb
     const white = [255, 255, 255] as [number, number, number]
 
-    // Title and Evaluation Period
+    // Title
     doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(31, 41, 55)
     doc.text('Professor Evaluation Results', margin, yPos)
+    yPos += 9 // Compact spacing after title
     
-    // Add evaluation period (start - end) on the right
+    // Evaluation Period and Semester Formatting
     const formatEvalDate = (dateStr?: string) => {
       if (!dateStr) return null
       try {
@@ -255,26 +257,31 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
       ? `${periodStart} - ${periodEnd}`
       : periodStart || periodEnd || new Date().toLocaleDateString()
 
+    const semesterText = evaluations.length > 0 && evaluations[0].semester ? ` | ${evaluations[0].semester} Semester` : ''
+    
+    // Draw Professor Info (Left) and Period Info (Right) on the SAME line (yPos)
+    const departmentName = evaluations.length > 0 ? evaluations[0].departmentName : ''
+    
+    // Left: Professor & Department (UPPERCASE as per reference)
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(107, 114, 128)
+    doc.text(`${professorName.toUpperCase()} | ${departmentName.toUpperCase()}`, margin, yPos)
+
+    // Right: Period & Semester
     doc.setFontSize(10)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(107, 114, 128)
-    doc.text(`Period: ${periodText}`, pageWidth - margin, yPos, { align: 'right' })
-    yPos += 10
+    doc.text(`Period: ${periodText}${semesterText}`, pageWidth - margin, yPos, { align: 'right' })
 
-    // Professor name and department
-    const departmentName = evaluations.length > 0 ? evaluations[0].departmentName : ''
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(75, 85, 99)
-    doc.text(`${professorName} ${departmentName ? `| ${departmentName}` : ''}`, margin, yPos)
-    yPos += 12
+    yPos += 10 // Tight spacing before next heading
 
     // Overall Performance Summary heading
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(31, 41, 55)
     doc.text('Overall Performance Summary', margin, yPos)
-    yPos += 8
+    yPos += 7 // Tight spacing before table
 
     // Calculate per-section scores using CHED weighted mean
     const ratingSections = availableSections.filter(
@@ -326,7 +333,7 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
       },
     })
 
-    yPos = (doc as any).lastAutoTable.finalY + 8
+    yPos = (doc as any).lastAutoTable.finalY + 12 // Increased spacing after summary table
 
     // Per-section question tables
     ratingSections.forEach(section => {
@@ -404,10 +411,10 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
         doc.setFontSize(8)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(55, 65, 81)
-        doc.text('Column Legend:   E = Excellent   |   VS = Very Satisfactory   |   S = Satisfactory   |   F = Fair   |   P = Poor', margin + 5, yPos)
+        doc.text('Column Legend:   P = Poor   |   F = Fair   |   S = Satisfactory   |   VS = Very Satisfactory   |   E = Excellent', margin + 5, yPos)
 
         // Jump yPos to after the box with proper spacing
-        yPos = boxStartY + scaleBoxHeight + 8
+        yPos = boxStartY + scaleBoxHeight + 12 // Increased spacing after scale description box
       }
 
       // Section heading
@@ -422,11 +429,11 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
         return [
           String(idx + 1),
           question,
-          String(q.e),
-          String(q.vs),
-          String(q.s),
-          String(q.f),
           String(q.p),
+          String(q.f),
+          String(q.s),
+          String(q.vs),
+          String(q.e),
           String(q.total),
         ]
       })
@@ -436,11 +443,11 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
         head: [[
           { content: '#', styles: { halign: 'center' } },
           { content: 'Question', styles: { halign: 'left' } },
-          { content: 'E', styles: { halign: 'center' } },
-          { content: 'VS', styles: { halign: 'center' } },
-          { content: 'S', styles: { halign: 'center' } },
-          { content: 'F', styles: { halign: 'center' } },
           { content: 'P', styles: { halign: 'center' } },
+          { content: 'F', styles: { halign: 'center' } },
+          { content: 'S', styles: { halign: 'center' } },
+          { content: 'VS', styles: { halign: 'center' } },
+          { content: 'E', styles: { halign: 'center' } },
           { content: 'Total', styles: { halign: 'center' } }
         ]],
         body: tableBody,
@@ -574,7 +581,7 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
             </div>
             <button
               onClick={exportToPdf}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border bg-red-600 text-white border-red-600 hover:bg-red-700 shadow-sm hover:shadow-md"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border bg-red-600 text-white border-red-600 hover:bg-red-700 active:scale-95 shadow-sm hover:shadow-md focus:ring-2 focus:ring-red-500 focus:ring-offset-2 outline-none"
             >
               <FileDown className="w-4 h-4" />
               Export PDF
@@ -587,7 +594,7 @@ export default function EvaluationCharts({ evaluations }: EvaluationChartsProps)
               <button
                 key={section}
                 onClick={() => setSelectedSection(section)}
-                className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border ${selectedSection === section
+                className={`px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border active:scale-95 focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 outline-none ${selectedSection === section
                   ? "bg-gray-900 text-white border-gray-900 shadow-md"
                   : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300"
                   }`}

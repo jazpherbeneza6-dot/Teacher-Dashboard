@@ -65,40 +65,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Validate required fields
               if (professorData.name && professorData.email && professorData.departmentId && professorData.departmentName) {
                 // Check if professor status is Inactive, Resigned, or Retired (case-insensitive)
+                // Safe Defaults & Defensive Parsing (Senior Skill: 1.2, 2.2)
+                const professorData = professorDoc.data() || {}
                 const professorStatus = professorData.status || "Active"
                 const statusLower = professorStatus.toLowerCase()
+                
                 if (statusLower === "inactive" || statusLower === "resigned" || statusLower === "retired") {
-                  console.warn("[v0] Professor account is", professorStatus, "- clearing session")
+                  console.warn("[v0] Security: Professor account is", professorStatus, "- clearing session")
                   localStorage.removeItem('professorId')
                 } else {
                   let imageUrl = professorData.imageUrl || professorData.profilePictureUrl || undefined
 
-                  // Log for debugging
-                  if (imageUrl) {
-                    console.log("[v0] Found imageUrl in Firestore:", imageUrl.substring(0, 50) + '...')
-                  } else {
-                    console.log("[v0] No imageUrl found in Firestore for professor:", professorData.name)
-                  }
-
-                  // Set professor with imageUrl from Firestore (base64 data URL)
+                  // Set professor with robust defaults (Defensive Parsing)
                   setProfessor({
                     id: professorDoc.id,
-                    name: professorData.name,
-                    email: professorData.email,
-                    departmentId: professorData.departmentId,
-                    departmentName: professorData.departmentName,
+                    name: professorData.name || "Professor",
+                    email: professorData.email || "",
+                    departmentId: professorData.departmentId || "unknown",
+                    departmentName: professorData.departmentName || "General Education",
                     password: professorData.password || "",
                     imageUrl: imageUrl,
                     profilePictureUrl: imageUrl,
                     handledSection: professorData.handledSection || undefined,
                     subject: professorData.subject || undefined,
-                    status: professorData.status || "Active",
+                    status: professorStatus,
                     subjectSections: professorData.subjectSections || [],
                     subjects: professorData.subjects || [],
                     lastLogin: professorData.lastLogin || undefined,
                   })
 
-                  console.log("[v0] Professor session restored:", professorData.name)
+                  console.log("[v0] Security: Professor session restored")
                 }
               } else {
                 // Invalid data, clear localStorage

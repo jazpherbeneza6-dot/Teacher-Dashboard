@@ -38,6 +38,7 @@ interface EvaluationResult {
     section?: string
   }>
   evaluationPeriodId?: string // Track which evaluation period this belongs to
+  semester?: string // Added semester field
   createdAt?: Timestamp
   submittedAt?: Timestamp
 }
@@ -46,6 +47,7 @@ interface EvaluationDeadline {
   startDate: Timestamp
   endDate: Timestamp
   isActive: boolean
+  semester?: string // Added semester field
   createdAt?: Timestamp
   updatedAt?: Timestamp
   periodId?: string // Unique identifier for this evaluation period
@@ -61,6 +63,7 @@ export default function Dashboard() {
   const [deadlineLoading, setDeadlineLoading] = useState(true)
   const [themeColors, setThemeColors] = useState<ReturnType<typeof getThemeColors>>(null)
   const [currentPeriodId, setCurrentPeriodId] = useState<string | null>(null)
+  const [currentSemester, setCurrentSemester] = useState<string | null>(null) // Added semester state
   const endDateRef = useRef<Date | null>(null)
   const startDateRef = useRef<Date | null>(null)
   const [totalStudents, setTotalStudents] = useState<number>(0)
@@ -171,13 +174,16 @@ export default function Dashboard() {
       endDateRef.current = null
       startDateRef.current = null
       setCurrentPeriodId(null)
+      setCurrentSemester(null)
       return true
     }
 
     const deadlineEndDate = deadlineData.endDate.toDate()
     const deadlineStartDate = deadlineData.startDate.toDate()
+    const semester = deadlineData.semester || null
     endDateRef.current = deadlineEndDate
     startDateRef.current = deadlineStartDate
+    setCurrentSemester(semester)
     const now = new Date()
 
     // Generate or get period ID based on start date
@@ -236,8 +242,8 @@ export default function Dashboard() {
         }
       },
       (error) => {
-        console.error("[v0] Error listening to deadline:", error)
-        // On error, assume deadline has passed to show results
+        console.error("[v0] Security: Firestore error in deadline listener", error)
+        // Graceful Fallback: If cloud reads fail, assume current data is stale but show results
         setIsDeadlinePassed(true)
         setDeadlineLoading(false)
       }
@@ -333,7 +339,12 @@ export default function Dashboard() {
             }
           }
 
-          results.push(data)
+          results.push({
+            ...data,
+            semester: data.semester || currentSemester || undefined, // Ensure semester is passed to results
+            evaluationPeriodStart: data.evaluationPeriodStart || startDateRef.current?.toISOString(),
+            evaluationPeriodEnd: data.evaluationPeriodEnd || endDateRef.current?.toISOString()
+          })
         })
 
         console.log("[v0] Real-time evaluation update (filtered by period):", {
@@ -442,17 +453,17 @@ export default function Dashboard() {
 
   return (
     <div
-      className="min-h-screen bg-gray-50"
+      className="min-h-screen transition-all duration-300"
       style={{
         background: backgroundColor,
         backgroundAttachment: "fixed"
       }}
     >
       <header
-        className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-200/80 shadow-sm"
+        className="sticky top-0 z-50 transition-all duration-300 border-b backdrop-blur-md"
         style={{
-          background: headerBg ? `${headerBg}dd` : "rgba(255, 255, 255, 0.95)",
-          borderBottom: `1px solid ${headerBorder || "rgba(229, 231, 235, 0.8)"}`,
+          background: `${headerBg}cc`, // Add 80% opacity for glassmorphism
+          borderColor: headerBorder,
         }}
       >
         <div className="flex h-24 items-center justify-between px-6 lg:px-12">
@@ -477,7 +488,7 @@ export default function Dashboard() {
                 <p
                   className="text-sm text-center text-gray-500 mt-1 hidden sm:block font-medium"
                 >
-                  LA Concepcion College
+                  LA Concepcion College {currentSemester ? `| ${currentSemester} Semester` : ""}
                 </p>
               </div>
             </div>
@@ -503,7 +514,7 @@ export default function Dashboard() {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="rounded-full p-1 outline-none ring-2 ring-gray-100 hover:ring-gray-200 transition-all flex-shrink-0 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  className="rounded-full p-1 outline-none ring-2 ring-gray-100 hover:ring-gray-200 active:scale-95 transition-all flex-shrink-0 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm hover:shadow-md"
                   aria-label="User menu"
                   aria-haspopup="menu"
                 >
